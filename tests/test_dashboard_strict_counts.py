@@ -228,6 +228,39 @@ def test_sync_summary_distinguishes_success_skipped_failed_and_manual():
     assert out == {"success": 1, "skipped": 3, "failed": 2, "manual": 5}
 
 
+def test_reported_39_forks_37_unverified_2_up_to_date_are_consistent():
+    out = run_node(
+        """
+        import {computeDashboardCounts,effectiveCountClass,isSelectableCandidate,isSyncConfirmedRepository} from './DASHBOARD/utils.js';
+        const repos=[];
+        for(let i=0;i<37;i++) repos.push({repository:`u/p${i}`,fork:true,status:'pending',check_status:'pending',ahead_by:null,behind_by:null});
+        repos.push({repository:'u/ok1',fork:true,status:'up-to-date',check_status:'ok',ahead_by:0,behind_by:0});
+        repos.push({repository:'u/ok2',fork:true,status:'synced',check_status:'ok',ahead_by:0,behind_by:0});
+        const ok=repos.filter(r=>r.repository==='u/ok1'||r.repository==='u/ok2');
+        console.log(JSON.stringify({
+            counts:computeDashboardCounts(repos),
+            ok:ok.map(r=>({
+                repository:r.repository,
+                effective:effectiveCountClass(r),
+                selectable:isSelectableCandidate(r),
+                confirmed:isSyncConfirmedRepository(r),
+            })),
+        }));
+        """
+    )
+    assert out["counts"]["total"] == 39
+    assert out["counts"]["up_to_date"] == 2
+    assert out["counts"]["to_be_synced"] == 0
+    assert out["counts"]["unsyncable"] == 0
+    assert out["counts"]["pending"] == 37
+    assert out["counts"]["check_errors"] == 0
+    assert out["counts"]["complete"] is False
+    assert out["ok"] == [
+        {"repository": "u/ok1", "effective": "synced", "selectable": False, "confirmed": False},
+        {"repository": "u/ok2", "effective": "synced", "selectable": False, "confirmed": False},
+    ]
+
+
 def test_upstream_label_uses_available_metadata_only():
     out = run_node(
         "import {getUpstreamLabel} from './DASHBOARD/utils.js';"

@@ -82,6 +82,160 @@ class ForkSynchronizer:
         """Return read-only counters from the last fork discovery."""
         return dict(self.last_diagnostics)
 
+    def compare_fork_diagnostic(self, repo, *, request_id: str | None = None, account_login: str | None = None):
+        """Read-only compare diagnostic for one discovered fork (no state changes)."""
+        import uuid
+
+        req_id = request_id or str(uuid.uuid4())
+        record = {
+            "request_id": req_id,
+            "account_login": account_login,
+            "repository_full_name": repo.get("full_name") if isinstance(repo, dict) else None,
+            "repository_id": repo.get("id") if isinstance(repo, dict) else None,
+            "fork": repo.get("fork") if isinstance(repo, dict) else None,
+            "owner_login": (repo.get("owner") or {}).get("login") if isinstance(repo, dict) and isinstance(repo.get("owner"), dict) else None,
+            "parent_full_name": None,
+            "parent_id": None,
+            "source_full_name": None,
+            "source_id": None,
+            "fork_default_branch": repo.get("default_branch") if isinstance(repo, dict) else None,
+            "upstream_default_branch": None,
+            "upstream_full_name_arg": None,
+            "fork_full_name_arg": None,
+            "fork_branch_arg": None,
+            "upstream_branch_arg": None,
+            "compare_endpoint": None,
+            "basehead": None,
+            "base": None,
+            "head": None,
+            "http_status": None,
+            "raw_status": None,
+            "ahead_by": None,
+            "behind_by": None,
+            "total_commits": None,
+            "request_start_time": None,
+            "request_end_time": None,
+            "duration_ms": None,
+            "origin": "fresh_api",
+            "result_state": "UNVERIFIED",
+            "derived_status": None,
+            "message": None,
+        }
+
+        if not isinstance(repo, dict):
+            record["message"] = "Invalid repository data."
+            record["origin"] = "error"
+            return record
+
+        parent = repo.get("parent")
+        source = repo.get("source")
+        record["parent_full_name"] = parent.get("full_name") if isinstance(parent, dict) else None
+        record["parent_id"] = parent.get("id") if isinstance(parent, dict) else None
+        record["source_full_name"] = source.get("full_name") if isinstance(source, dict) else None
+        record["source_id"] = source.get("id") if isinstance(source, dict) else None
+        record["upstream_default_branch"] = parent.get("default_branch") if isinstance(parent, dict) else None
+
+        full_name = repo.get("full_name")
+        fork_branch = repo.get("default_branch")
+        upstream_full_name = parent.get("full_name") if isinstance(parent, dict) else None
+        upstream_branch = parent.get("default_branch") if isinstance(parent, dict) else None
+
+        try:
+            if not isinstance(full_name, str) or not full_name.strip():
+                raise ValueError("Missing or invalid repository full_name.")
+            full_name = full_name.strip()
+            if full_name.count("/") != 1 or not all(full_name.split("/", 1)):
+                raise ValueError("Invalid repository full_name.")
+            if not isinstance(fork_branch, str) or not fork_branch.strip():
+                raise ValueError("Missing or invalid default branch.")
+            if (
+                not isinstance(upstream_full_name, str)
+                or not upstream_full_name.strip()
+                or upstream_full_name.count("/") != 1
+                or not all(upstream_full_name.strip().split("/", 1))
+                or not isinstance(upstream_branch, str)
+                or not upstream_branch.strip()
+            ):
+                raise ValueError("Missing upstream branch information.")
+
+            record["fork_full_name_arg"] = full_name
+            record["upstream_full_name_arg"] = upstream_full_name.strip()
+            record["fork_branch_arg"] = fork_branch.strip()
+            record["upstream_branch_arg"] = upstream_branch.strip()
+
+            diag = self.github.compare_upstream_diagnostic(
+                fork_full_name=full_name,
+                upstream_full_name=upstream_full_name.strip(),
+                upstream_branch=upstream_branch.strip(),
+                fork_branch=fork_branch.strip(),
+                request_id=req_id,
+            )
+            comparison = diag.get("comparison") if isinstance(diag, dict) else None
+            meta = diag.get("meta") if isinstance(diag, dict) else {}
+            if not isinstance(meta, dict):
+                meta = {}
+
+            basehead = meta.get("basehead")
+            record["compare_endpoint"] = meta.get("endpoint")
+            record["basehead"] = basehead
+            if isinstance(basehead, str) and "..." in basehead:
+                base, head = basehead.split("...", 1)
+                record["base"] = base
+                record["head"] = head
+            record["http_status"] = meta.get("http_status")
+            record["request_start_time"] = meta.get("start_time")
+            record["request_end_time"] = meta.get("end_time")
+            record["duration_ms"] = meta.get("duration_ms")
+            response_fields = meta.get("response_fields") if isinstance(meta.get("response_fields"), dict) else {}
+
+            if meta.get("error") or not isinstance(comparison, dict):
+                record["origin"] = "fresh_api_error"
+                record["result_state"] = "UNVERIFIED"
+                record["message"] = meta.get("error") or "Invalid comparison data returned by GitHub."
+                record["raw_status"] = response_fields.get("status")
+                record["ahead_by"] = response_fields.get("ahead_by")
+                record["behind_by"] = response_fields.get("behind_by")
+                record["total_commits"] = response_fields.get("total_commits")
+                return record
+
+            ahead_by = comparison.get("ahead_by")
+            behind_by = comparison.get("behind_by")
+            total_commits = comparison.get("total_commits")
+            raw_status = comparison.get("status")
+            record["raw_status"] = raw_status
+            record["ahead_by"] = ahead_by
+            record["behind_by"] = behind_by
+            record["total_commits"] = total_commits
+
+            if (
+                isinstance(ahead_by, bool) or not isinstance(ahead_by, int) or ahead_by < 0
+                or isinstance(behind_by, bool) or not isinstance(behind_by, int) or behind_by < 0
+            ):
+                record["origin"] = "fresh_api_invalid"
+                record["result_state"] = "UNVERIFIED"
+                record["message"] = "Invalid comparison counts returned by GitHub."
+                return record
+
+            if behind_by == 0 and ahead_by == 0:
+                derived_status = "up-to-date"
+            elif behind_by > 0 and ahead_by == 0:
+                derived_status = "behind"
+            elif ahead_by > 0 and behind_by == 0:
+                derived_status = "ahead"
+            else:
+                derived_status = "diverged"
+
+            record["origin"] = "fresh_api"
+            record["result_state"] = "VERIFIED_FRESH"
+            record["derived_status"] = derived_status
+            record["message"] = "Fresh compare completed."
+            return record
+        except Exception as error:
+            record["origin"] = "error"
+            record["result_state"] = "UNVERIFIED"
+            record["message"] = self._github_error_details(error)
+            return record
+
     def _compare_fork(self, repo):
         """Validate fork metadata and compare its branch with its upstream."""
         if not isinstance(repo, dict):

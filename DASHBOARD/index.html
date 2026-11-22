@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#07090d">
     <title>DREAMEROL SYNC - Dashboard</title>
-    <link rel="stylesheet" href="/dashboard/static/dashboard.css">
+    <link rel="stylesheet" href="/dashboard/static/dashboard.css?v=20261122s">
+    <script type="module" src="/dashboard/static/theme_guard.js?v=20261121a"></script>
 </head>
 <body>
     <main class="dashboard">
@@ -26,7 +27,7 @@
                     <span id="user-name" class="account-name">Loading...</span>
                     <span id="connection-status" class="connection-status" aria-hidden="true">Connecting...</span>
                     <div class="header-actions">
-                        <a id="signin-button" class="ghost-button" href="/?switch=1">Sign in</a>
+                        <a id="signin-button" class="ghost-button" href="/?switch=1&v=20261121j">Sign in</a>
                         <button type="button" id="signout-button" class="ghost-button">Sign out</button>
                     </div>
                 </div>
@@ -34,7 +35,7 @@
         </nav>
 
         <header class="hero-card">
-            <a class="hero-art-link" href="https://github.com/Dreamerol/" target="_blank" rel="noopener noreferrer"><img class="hero-art" src="/dashboard/static/dreamerol-sync-hero.png" alt="Moonlit fantasy artwork with a girl, her dog, a crescent moon and an illuminated city"></a>
+            <a class="hero-art-link" href="https://github.com/Dreamerol/" target="_blank" rel="noopener noreferrer"><img class="hero-art" src="/dashboard/static/dreamerol-sync-hero.png?v=20261122q" alt="Moonlit fantasy artwork with a girl, her dog, a crescent moon and an illuminated city"></a>
             <div class="hero-controls">
                 <section class="hero-action" aria-label="Synchronization actions">
                     <button type="button" id="sync-button" class="hero-sync-button hero-sync-button--chosen" aria-label="SYNC CHOSEN" disabled>
@@ -127,16 +128,6 @@
             <p id="ahead-note" class="ahead-note" hidden></p>
         </section>
 
-        <section id="sync-summary" class="sync-summary" aria-label="Sync summary" aria-live="polite" hidden>
-            <h2>SYNC RESULTS</h2>
-            <div class="sync-summary-grid">
-                <div class="sync-success"><span>SUCCESSFULLY SYNCHRONIZED</span><strong id="sync-success">0</strong></div>
-                <div class="sync-skipped"><span>SKIPPED</span><strong id="sync-skipped">0</strong></div>
-                <div class="sync-failed"><span>FAILED</span><strong id="sync-failed">0</strong></div>
-                <div class="sync-manual"><span>MANUAL ATTENTION</span><strong id="sync-manual">0</strong></div>
-            </div>
-        </section>
-
         <details class="activity-details">
             <summary>
                 <span class="summary-row">
@@ -147,6 +138,6 @@
             <ul id="sync-history" class="compact-list activity-dropdown-result"></ul>
         </details>
     </main>
-    <script type="module" src="/dashboard/static/app.js"></script>
+    <script type="module" src="/dashboard/static/app.js?v=20261121l"></script>
 </body>
 </html>

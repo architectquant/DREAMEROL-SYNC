@@ -22,6 +22,14 @@ def test_healthz_reports_ok(client):
     assert response.headers["Pragma"] == "no-cache"
 
 
+def test_html_pages_are_not_cached(client):
+    for path in ("/", "/dashboard"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.headers["Cache-Control"] == "no-store"
+        assert response.headers["Pragma"] == "no-cache"
+
+
 def make_github_client():
     github = Mock()
     github.session = Mock()

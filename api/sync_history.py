@@ -1,4 +1,4 @@
-"""Persist last successful sync timestamps per account/repository."""
+"""Persist last successful sync timestamps and completed operations per account."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from typing import Callable
 
 
 _LOCK = threading.RLock()
+_MAX_OPERATIONS = 20
 
 
 def _default_path() -> Path:
@@ -34,10 +35,58 @@ def _normalize_repo(repo: str) -> str:
     return repo.strip()
 
 
+def _normalize_operation_id(operation_id: str) -> str:
+    if not isinstance(operation_id, str) or not operation_id.strip():
+        raise ValueError("operation_id is required")
+    return operation_id.strip()
+
+
+def _summarize_results(results: list[dict]) -> dict:
+    summary = {"success": 0, "skipped": 0, "failed": 0, "manual": 0}
+    for result in results:
+        status = result.get("status")
+        if status == "synced":
+            summary["success"] += 1
+        elif status in {"up-to-date", "skipped"}:
+            summary["skipped"] += 1
+        elif status in {"error", "conflict", "ambiguous"}:
+            summary["failed"] += 1
+            summary["manual"] += 1
+        elif status in {"diverged", "ahead"}:
+            summary["skipped"] += 1
+            summary["manual"] += 1
+        else:
+            summary["manual"] += 1
+    return summary
+
+
+def _sanitize_results(results) -> list[dict]:
+    sanitized: list[dict] = []
+    for item in results or []:
+        if not isinstance(item, dict):
+            continue
+        repository = item.get("repository")
+        if not isinstance(repository, str) or not repository.strip():
+            continue
+        entry = {"repository": repository.strip(), "status": str(item.get("status") or "unknown")}
+        message = item.get("message")
+        if isinstance(message, str) and message:
+            entry["message"] = message
+        for key in ("ahead_by", "behind_by", "fork"):
+            if isinstance(item.get(key), bool) or isinstance(item.get(key), int):
+                entry[key] = item[key]
+        sanitized.append(entry)
+    return sanitized
+
+
 class SyncHistoryStore:
     """File-backed store of last successful sync timestamps.
 
-    Data shape: {"accounts": {"<account>": {"repos": {"owner/repo": {"last_successful_sync": "<iso>"}}}}}
+    Data shape:
+        {"accounts": {"<account>": {
+            "repos": {"owner/repo": {"last_successful_sync": "<iso>"}},
+            "operations": [{"operation_id": "<uuid>", "created_at": "<iso>", "targets": [], "results": [], "summary": {}}],
+        }}}
     """
 
     def __init__(
@@ -170,3 +219,76 @@ class SyncHistoryStore:
                     if isinstance(ts, str) and ts and name not in out:
                         out[name] = ts
             return out
+
+    def record_operation(
+        self,
+        account: str,
+        operation_id: str,
+        results,
+        *,
+        targets=None,
+    ) -> dict:
+        acc = _normalize_account(account)
+        op_id = _normalize_operation_id(operation_id)
+        clean_results = _sanitize_results(results)
+        clean_targets = []
+        for name in targets or []:
+            if isinstance(name, str) and name.strip() and name not in clean_targets:
+                clean_targets.append(name.strip())
+        operation = {
+            "operation_id": op_id,
+            "created_at": self._clock(),
+            "targets": clean_targets,
+            "results": clean_results,
+            "summary": _summarize_results(clean_results),
+        }
+        with _LOCK:
+            data = self._load()
+            accounts = data.setdefault("accounts", {})
+            if not isinstance(accounts, dict):
+                accounts = {}
+                data["accounts"] = accounts
+            acc_entry = accounts.setdefault(acc, {})
+            if not isinstance(acc_entry, dict):
+                acc_entry = {}
+                accounts[acc] = acc_entry
+            operations = acc_entry.get("operations")
+            if not isinstance(operations, list):
+                operations = []
+                acc_entry["operations"] = operations
+            operations = [op for op in operations if isinstance(op, dict) and op.get("operation_id") != op_id]
+            operations.insert(0, operation)
+            acc_entry["operations"] = operations[:_MAX_OPERATIONS]
+            self._save(data)
+        return operation
+
+    def get_operations(self, account: str, limit: int = _MAX_OPERATIONS) -> list[dict]:
+        acc = _normalize_account(account)
+        safe_limit = max(1, min(int(limit), _MAX_OPERATIONS)) if isinstance(limit, int) else _MAX_OPERATIONS
+        with _LOCK:
+            data = self._load()
+            accounts = data.get("accounts", {})
+            operations: list[dict] = []
+            seen: set[str] = set()
+            for _, acc_entry in self._iter_matching_account_entries(accounts, acc):
+                if not isinstance(acc_entry, dict):
+                    continue
+                entries = acc_entry.get("operations")
+                if not isinstance(entries, list):
+                    continue
+                for entry in entries:
+                    if not isinstance(entry, dict):
+                        continue
+                    op_id = entry.get("operation_id")
+                    if not isinstance(op_id, str) or not op_id or op_id in seen:
+                        continue
+                    seen.add(op_id)
+                    operations.append(dict(entry))
+            operations.sort(key=lambda op: str(op.get("created_at") or ""), reverse=True)
+            return operations[:safe_limit]
+
+    def get_snapshot(self, account: str, limit: int = _MAX_OPERATIONS) -> dict:
+        return {
+            "last_successful_sync": self.get_map(account),
+            "operations": self.get_operations(account, limit),
+        }

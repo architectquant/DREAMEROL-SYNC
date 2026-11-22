@@ -56,6 +56,20 @@ export function effectiveCountClass(repo) {
     return getCompareClass(r) || base;
 }
 
+export function sortReposForDisplay(repos = []) {
+    const priority = (repo) => {
+        const c = effectiveCountClass(repo);
+        if (c === "behind") return 0;
+        if (c === "synced") return 1;
+        if (c === "ahead" || c === "diverged") return 2;
+        return 3;
+    };
+    return (Array.isArray(repos) ? repos : [])
+        .map((repo, index) => ({ repo, index }))
+        .sort((a, b) => priority(a.repo) - priority(b.repo) || a.index - b.index)
+        .map(({ repo }) => repo);
+}
+
 export function isCheckError(repo) {
     const r = repo || {};
     const c = effectiveCountClass(r);
@@ -107,8 +121,32 @@ export function isForkRepository(repo) {
     return !!(repo && typeof repo === "object" && repo.fork === true);
 }
 
+export function isReadyCandidate(repo) {
+    if (!isForkRepository(repo) || getCompareClass(repo) !== "behind") return false;
+    if (repo.preview_error || repo.check_status === "error" || repo.check_status === "timeout") return false;
+    return repo.status !== "error" && repo.status !== "conflict";
+}
+
+export function isSelectableCandidate(repo) {
+    if (!isForkRepository(repo)) return false;
+    if (repo.preview_error || repo.check_status === "error" || repo.check_status === "timeout") return false;
+    if (repo.status === "error" || repo.status === "conflict" || repo.status === "ambiguous") return false;
+    if (repo.status === "ahead" || repo.status === "diverged") return false;
+    if (effectiveCountClass(repo) === "synced") return false;
+    return true;
+}
+
+export function listErrorMessage(error) {
+    const message = error && typeof error.message === "string" ? error.message.trim() : "";
+    return message || "Could not load forks from GitHub.";
+}
+
 export function isSyncableRepository(repo) {
-    return isForkRepository(repo) && getCompareClass(repo) === "behind" && effectiveCountClass(repo) === "behind";
+    return isReadyCandidate(repo) && effectiveCountClass(repo) === "behind";
+}
+
+export function isSyncConfirmedRepository(repo) {
+    return isSyncableRepository(repo) && repo.check_status === "ok";
 }
 
 export function isUnresolvedRepository(repo) {
@@ -274,6 +312,70 @@ export function getSyncProgressState({ total = 0, processed = 0, active = false 
     };
 }
 
+export function operationRepositoryRow(result, createdAt = null) {
+    if (!isValidRepositoryResult(result)) return null;
+    const status = typeof result.status === "string" && result.status.trim() ? result.status.trim() : "unknown";
+    const upToDate = status === "synced" || status === "up-to-date";
+    const errorStatus = status === "error" || status === "conflict" || status === "ambiguous" || status === "unknown";
+    const row = {
+        repository: result.repository,
+        status,
+        ahead_by: upToDate ? 0 : (Number.isInteger(result.ahead_by) ? result.ahead_by : null),
+        behind_by: upToDate ? 0 : (Number.isInteger(result.behind_by) ? result.behind_by : null),
+        message: typeof result.message === "string" ? result.message : "",
+        check_status: errorStatus ? "error" : "ok",
+        last_successful_sync: typeof result.last_successful_sync === "string"
+            ? result.last_successful_sync
+            : (status === "synced" && createdAt ? createdAt : null),
+    };
+    if (typeof result.preview_error === "string") row.preview_error = result.preview_error;
+    return row;
+}
+
+export function mergeOperationResults(repositories = [], results = [], createdAt = null) {
+    const rows = Array.isArray(repositories) ? repositories.filter((r) => r && typeof r === "object") : [];
+    const byName = new Map();
+    for (const row of rows) {
+        if (typeof row.repository === "string" && !byName.has(row.repository)) byName.set(row.repository, row);
+    }
+    const names = [];
+    for (const result of Array.isArray(results) ? results : []) {
+        const row = operationRepositoryRow(result, createdAt);
+        if (!row) continue;
+        if (!byName.has(row.repository)) continue;
+        const previous = byName.get(row.repository) || {};
+        const merged = { ...previous, ...row };
+        if (typeof previous.fork === "boolean") merged.fork = previous.fork;
+        delete merged.preview_error;
+        if (typeof row.preview_error === "string") merged.preview_error = row.preview_error;
+        byName.set(row.repository, merged);
+        if (!names.includes(row.repository)) names.push(row.repository);
+    }
+    const ordered = [];
+    const seen = new Set();
+    for (const row of rows) {
+        const name = row.repository;
+        if (seen.has(name)) continue;
+        ordered.push(byName.get(name) || row);
+        seen.add(name);
+    }
+    return { repositories: ordered, names };
+}
+
+export function operationCountsAfter(countsBefore, summary, results = [], createdAt = null) {
+    const base = countsBefore && Number.isFinite(countsBefore.total)
+        ? { ...countsBefore }
+        : computeDashboardCounts(mergeOperationResults([], results, createdAt).repositories);
+    const success = Math.max(0, Number(summary && summary.success) || 0);
+    const beforeReady = Math.max(0, Number(base.to_be_synced) || 0);
+    const moved = Math.min(success, beforeReady);
+    base.up_to_date = (Number(base.up_to_date) || 0) + moved;
+    base.to_be_synced = beforeReady - moved;
+    base.complete = (Number(base.pending) || 0) === 0 && (Number(base.check_errors) || 0) === 0;
+    base.from_operation = true;
+    return base;
+}
+
 export function summarizeSyncResults(results = []) {
     let success = 0, skipped = 0, failed = 0, manual = 0;
     for (const result of Array.isArray(results) ? results : []) {
@@ -314,6 +416,14 @@ export function formatLastSync(value, now = Date.now()) {
         relative = d === 1 ? "1 day ago" : `${d} days ago`;
     }
     return `Last successful sync: ${absolute} (${relative})`;
+}
+
+export function formatHistoryTimestamp(value) {
+    if (typeof value !== "string" || !value.trim()) return "Time unavailable";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Time unavailable";
+    const pad = (number) => String(number).padStart(2, "0");
+    return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}, ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export function dedupeRepositoriesByName(repos = []) {

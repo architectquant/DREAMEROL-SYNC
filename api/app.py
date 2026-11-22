@@ -95,8 +95,9 @@ async def add_api_no_store_header(request: Request, call_next):
     else:
         response = await call_next(request)
     _apply_security_headers(response, request)
-    if request.url.path.startswith("/api/"):
+    if request.url.path.startswith("/api/") or request.url.path in {"/", "/dashboard"}:
         response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
     return response
 
 

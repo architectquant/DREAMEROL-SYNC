@@ -1,4 +1,5 @@
 import os
+import uuid
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
@@ -72,6 +73,25 @@ class SyncResponse(BaseModel):
     total: int
     results: list[SyncResult]
     diagnostics: dict | None = None
+    operation_id: str | None = None
+
+    @model_serializer
+    def serialize_response(self) -> dict:
+        data = {
+            "account": self.account,
+            "total": self.total,
+            "results": self.results,
+            "diagnostics": self.diagnostics,
+        }
+        if self.operation_id:
+            data["operation_id"] = self.operation_id
+        return data
+
+
+class HistoryResponse(BaseModel):
+    account: str
+    last_successful_sync: dict[str, str]
+    operations: list[dict]
 
 
 class AuthStartResponse(BaseModel):
@@ -276,6 +296,8 @@ def sync_repositories(
         if len(set(request.repositories)) != len(request.repositories):
             raise HTTPException(status_code=400, detail="Duplicate repositories were selected.")
 
+    operation_id = str(uuid.uuid4()) if not request.dry_run else None
+
     client = GitHubClient(token.strip())
     try:
         if not isinstance(account, str) or not account.strip():
@@ -420,6 +442,13 @@ def sync_repositories(
             for result in results:
                 if result.get("status") == "synced":
                     sync_history.record_success(account, result["repository"])
+            if operation_id:
+                sync_history.record_operation(
+                    account,
+                    operation_id,
+                    results,
+                    targets=request.repositories,
+                )
 
         last_map = sync_history.get_map(account)
         enriched = []
@@ -437,8 +466,149 @@ def sync_repositories(
             total=len(enriched),
             results=enriched,
             diagnostics=diagnostics,
+            operation_id=operation_id,
         )
     except RequestException as error:
         return _github_error(error)
+    finally:
+        client.session.close()
+
+
+@router.get("/history", response_model=HistoryResponse)
+def read_sync_history(
+    http_request: Request,
+    response: Response,
+    authorization: str | None = Header(default=None),
+    manager: WebAuthManager = Depends(get_web_auth_manager),
+    sync_history: SyncHistoryStore = Depends(get_sync_history),
+):
+    """Return authoritative persisted sync results for the current account."""
+    token, session_id, account = _resolve_github_credentials(
+        http_request, authorization, manager
+    )
+    if not isinstance(account, str) or not account.strip():
+        client = GitHubClient(token.strip())
+        try:
+            user = client.get_authenticated_user()
+        except RequestException as error:
+            return _github_error(error)
+        finally:
+            client.session.close()
+        account = user.get("login") if isinstance(user, dict) else None
+        if not isinstance(account, str) or not account.strip():
+            raise HTTPException(status_code=502, detail="GitHub returned an invalid account profile.")
+
+    if session_id:
+        _set_session_cookie(response, http_request, manager, session_id)
+    snapshot = sync_history.get_snapshot(account)
+    return HistoryResponse(
+        account=account,
+        last_successful_sync=snapshot["last_successful_sync"],
+        operations=snapshot["operations"],
+    )
+
+
+class CompareDiagnosticsRequest(BaseModel):
+    repositories: list[str]
+
+
+@router.post("/debug/compare-forks")
+def debug_compare_forks(
+    request: CompareDiagnosticsRequest,
+    http_request: Request,
+    response: Response,
+    authorization: str | None = Header(default=None),
+    manager: WebAuthManager = Depends(get_web_auth_manager),
+):
+    """Read-only compare diagnostics for explicit repos (no sync/writes, no counters)."""
+    if not isinstance(request.repositories, list) or not request.repositories:
+        raise HTTPException(status_code=400, detail="Provide at least one repository.")
+    if len(request.repositories) > 20:
+        raise HTTPException(status_code=400, detail="Too many repositories requested.")
+
+    token, session_id, account = _resolve_github_credentials(
+        http_request, authorization, manager
+    )
+
+    def _gh_err(error: RequestException, *, discovery: bool = False) -> JSONResponse:
+        status = _github_http_status(error)
+        if status == 401:
+            if session_id:
+                manager.logout(session_id)
+            error_response = JSONResponse(
+                status_code=401,
+                content={"state": "REAUTH_REQUIRED", "detail": "The GitHub token is invalid."},
+            )
+            error_response.delete_cookie(SESSION_COOKIE, path="/")
+            return error_response
+        if discovery:
+            return JSONResponse(status_code=502, content={"detail": _github_discovery_error(error)})
+        if status == 403:
+            return JSONResponse(status_code=403, content={"detail": "The GitHub token does not have sufficient permissions."})
+        return JSONResponse(status_code=502, content={"detail": "Could not reach GitHub."})
+
+    client = GitHubClient(token.strip())
+    try:
+        if not isinstance(account, str) or not account.strip():
+            try:
+                user = client.get_authenticated_user()
+            except RequestException as error:
+                return _gh_err(error)
+            account = user.get("login") if isinstance(user, dict) else None
+            if not isinstance(account, str) or not account.strip():
+                raise HTTPException(status_code=502, detail="GitHub returned an invalid account profile.")
+
+        if session_id:
+            _set_session_cookie(response, http_request, manager, session_id)
+
+        synchronizer = ForkSynchronizer(client)
+        try:
+            current_forks = synchronizer.get_forks()
+        except RequestException as error:
+            return _gh_err(error, discovery=True)
+
+        forks_by_name = {
+            fork.get("full_name"): fork
+            for fork in (current_forks or [])
+            if isinstance(fork, dict) and isinstance(fork.get("full_name"), str)
+        }
+
+        diagnostics_get = getattr(synchronizer, "get_last_diagnostics", None)
+        discovery_diagnostics = diagnostics_get() if callable(diagnostics_get) else None
+
+        results = []
+        for name in request.repositories:
+            if not isinstance(name, str) or not name.strip():
+                results.append({
+                    "repository_full_name": name,
+                    "result_state": "UNVERIFIED",
+                    "origin": "error",
+                    "message": "Invalid repository name.",
+                })
+                continue
+            repo_name = name.strip()
+            fork = forks_by_name.get(repo_name)
+            if not isinstance(fork, dict):
+                results.append({
+                    "request_id": str(uuid.uuid4()),
+                    "account_login": account,
+                    "repository_full_name": repo_name,
+                    "result_state": "UNVERIFIED",
+                    "origin": "not_found_in_discovery",
+                    "message": "Repository not found in fresh authenticated fork discovery.",
+                })
+                continue
+            results.append(
+                synchronizer.compare_fork_diagnostic(fork, account_login=account)
+            )
+
+        return {
+            "account": account,
+            "discovery_diagnostics": discovery_diagnostics,
+            "total": len(results),
+            "results": results,
+        }
+    except RequestException as error:
+        return _gh_err(error)
     finally:
         client.session.close()

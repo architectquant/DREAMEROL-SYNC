@@ -347,7 +347,8 @@ def test_dashboard_syncable_status_label_is_ready_to_sync():
         "console.log(JSON.stringify({"
         " badge:labels.behind,"
         " unverifiedLabels:[labels.error,labels.conflict,labels.unknown,labels.skipped],"
-        " oldUnverifiedLabelInApp:app.includes('CHECK FAILED / UNVERIFIED'),"
+        " hasUnverifiedBangLabel:app.includes('UNVERIFIED!!!'),"
+        " oldCheckFailedBadgeInApp:app.includes('(CHECK FAILED)'),"
         " stat:html.includes('<span class=\"stat-label\">READY TO SYNC</span>'),"
         " filter:html.includes('<option value=\"to-be-synced\">READY TO SYNC</option>'),"
         " legend:html.includes('<span>READY TO SYNC</span><strong id=\"summary-to-be-synced\"'),"
@@ -363,8 +364,9 @@ def test_dashboard_syncable_status_label_is_ready_to_sync():
     )
     assert out == {
         "badge": "READY TO SYNC",
-        "unverifiedLabels": ["UNVERIFIED", "UNVERIFIED", "UNVERIFIED", "UNVERIFIED"],
-        "oldUnverifiedLabelInApp": False,
+        "unverifiedLabels": ["UNVERIFIED!!!", "UNVERIFIED!!!", "UNVERIFIED!!!", "UNVERIFIED!!!"],
+        "hasUnverifiedBangLabel": True,
+        "oldCheckFailedBadgeInApp": False,
         "stat": True,
         "filter": True,
         "legend": True,

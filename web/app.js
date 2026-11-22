@@ -11,7 +11,6 @@ const DASHBOARD_URL = `${window.location.origin}/dashboard`;
 let loginTimer = null;
 let loginStartedAt = 0;
 let loginPollGeneration = 0;
-const switchIntent = new URLSearchParams(window.location.search).get("switch") === "1";
 
 function setAuthStatus(message, state = "") {
     if (!authStatus) return;
@@ -99,25 +98,17 @@ async function restoreSession() {
     try {
         const data = await requestJson("/api/auth/status", { cache: "no-store" }, "Could not check GitHub sign-in status.");
         if (data.state === "AUTHENTICATED") {
-            if (switchIntent) {
-                setAuthStatus("Signed in. Use 'Sign in with GitHub' to choose a different account.", "muted");
-                return;
-            }
             redirectToDashboard();
             return;
         }
         if (PENDING_AUTH_STATES.has(data.state)) {
-            if (switchIntent) {
-                setAuthStatus("Not signed in. Sign in with GitHub to choose a different account.", "muted");
-                return;
-            }
             startLoginPolling();
             return;
         }
-        setAuthStatus(switchIntent ? "Sign in with GitHub to choose a different account." : "Not signed in.", "muted");
+        setAuthStatus("Not signed in.", "muted");
     } catch (error) {
         if (error.status === 401) {
-            setAuthStatus(switchIntent ? "Sign in with GitHub to choose a different account." : "Not signed in.", "muted");
+            setAuthStatus("Not signed in.", "muted");
             return;
         }
         setAuthStatus(error.message || "Could not check GitHub sign-in status.", "error");

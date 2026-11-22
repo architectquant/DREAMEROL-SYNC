@@ -520,6 +520,8 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .repo-row:hover { border-color: #354562; background: #0d1424; }
 .repo-select { display: flex; align-items: center; justify-content: center; min-height: 20px; }
 .repo-select input { width: 17px; height: 17px; accent-color: var(--blue); }
+.check-retry { margin-left: 8px; padding: 2px 7px; font-size: 11px; color: #bfdbfe; background: transparent; border: 1px solid rgba(96, 165, 250, 0.5); border-radius: 6px; cursor: pointer; }
+.check-retry:hover { border-color: #60a5fa; color: #eff6ff; }
 .repo-name { font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
 .repo-status, .repo-meta { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
 .repo-status {
@@ -624,4 +626,221 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
     .stat-label { font-size: 10px; }
     .stat-value { font-size: 28px; }
     .summary-grid strong, .sync-summary-grid strong { font-size: 21px; }
+}
+
+@layer dreamerol-guard {
+    :root[data-theme-guard="on"] {
+        color-scheme: dark !important;
+        background-color: var(--bg) !important;
+    }
+    :root[data-theme-guard="on"] body {
+        color: var(--text) !important;
+        background-color: var(--bg) !important;
+        background-image:
+            radial-gradient(circle at 10% 5%, rgba(88, 28, 135, 0.22), transparent 32%),
+            radial-gradient(circle at 90% 12%, rgba(29, 78, 216, 0.2), transparent 30%),
+            none !important;
+    }
+    :root[data-theme-guard="on"] .dashboard,
+    :root[data-theme-guard="on"] .dashboard * {
+        color: var(--text) !important;
+    }
+    :root[data-theme-guard="on"] :focus-visible {
+        outline: 2px solid var(--blue) !important;
+        outline-offset: 2px !important;
+    }
+    :root[data-theme-guard="on"] .hero-card {
+        border-color: rgba(99, 102, 241, 0.36) !important;
+        background: #080d1b !important;
+        box-shadow: 0 26px 90px rgba(2, 6, 23, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    }
+    :root[data-theme-guard="on"] .top-strip {
+        border-color: rgba(148, 163, 184, 0.22) !important;
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(8, 12, 26, 0.78)) !important;
+        box-shadow: 0 10px 30px rgba(2, 6, 23, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+    }
+    :root[data-theme-guard="on"] .hero-controls {
+        border-top-color: var(--border) !important;
+        background: linear-gradient(180deg, rgba(8, 12, 26, 0.97), #070b16) !important;
+    }
+    :root[data-theme-guard="on"] .account-block {
+        border-color: rgba(148, 163, 184, 0.24) !important;
+        background: rgba(8, 13, 30, 0.58) !important;
+        box-shadow: 0 8px 20px rgba(2, 6, 23, 0.22) !important;
+    }
+    :root[data-theme-guard="on"] .brand-primary { color: #F8FAFF !important; }
+    :root[data-theme-guard="on"] .brand-separator { color: #3BEE7E !important; }
+    :root[data-theme-guard="on"] .dashboard a.brand-secondary { color: #8AF0B1 !important; }
+    :root[data-theme-guard="on"] .dashboard a.activity-credit { color: var(--muted) !important; }
+    :root[data-theme-guard="on"] .github-icon { fill: #e2e8f0 !important; }
+    :root[data-theme-guard="on"] .ghost-button {
+        border-color: rgba(148, 163, 184, 0.28) !important;
+        background: rgba(15, 23, 42, 0.68) !important;
+        color: var(--text) !important;
+    }
+    :root[data-theme-guard="on"] .hero-sync-button {
+        border-color: rgba(255, 185, 225, 0.92) !important;
+        background: #C93BFF !important;
+        color: #FFFFFF !important;
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.5),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+            inset 0 0 20px rgba(255, 140, 215, 0.35),
+            inset 0 -3px 0 rgba(40, 2, 74, 0.46),
+            inset 0 -10px 18px rgba(40, 2, 74, 0.24),
+            0 6px 0 #4A0286,
+            0 9px 14px rgba(2, 6, 23, 0.44),
+            0 18px 34px rgba(112, 12, 204, 0.48),
+            0 0 var(--btn-glow-near) rgba(255, 120, 205, 0.62),
+            0 0 var(--btn-glow-far) rgba(215, 50, 205, 0.38) !important;
+    }
+    :root[data-theme-guard="on"] .hero-sync-button--all {
+        border-color: rgba(120, 255, 205, 0.92) !important;
+        background: #10EFA2 !important;
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.5),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.42),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+            inset 0 0 20px rgba(90, 255, 205, 0.3),
+            inset 0 -3px 0 rgba(1, 54, 42, 0.48),
+            inset 0 -10px 18px rgba(1, 54, 42, 0.26),
+            0 6px 0 #035C47,
+            0 9px 14px rgba(2, 6, 23, 0.44),
+            0 18px 34px rgba(0, 190, 131, 0.48),
+            0 0 var(--btn-glow-near) rgba(90, 255, 205, 0.58),
+            0 0 var(--btn-glow-far) rgba(0, 227, 155, 0.36) !important;
+    }
+    :root[data-theme-guard="on"] .button-icon { fill: none !important; stroke: currentColor !important; }
+    :root[data-theme-guard="on"] .sync-title { color: #FFFFFF !important; }
+    :root[data-theme-guard="on"] .hero-sync-button::after {
+        background: linear-gradient(105deg, transparent 0%, rgba(255, 255, 255, 0.02) 40%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0.02) 60%, transparent 100%) !important;
+    }
+    :root[data-theme-guard="on"] .sync-eligible-count,
+    :root[data-theme-guard="on"] .status-message,
+    :root[data-theme-guard="on"] .summary-status,
+    :root[data-theme-guard="on"] .activity-details summary,
+    :root[data-theme-guard="on"] .check-retry,
+    :root[data-theme-guard="on"] .activity-dropdown-result li::before {
+        color: #c7d2fe !important;
+    }
+    :root[data-theme-guard="on"] .sync-eligible-count,
+    :root[data-theme-guard="on"] .status-message {
+        border-color: rgba(148, 163, 184, 0.22) !important;
+        background: rgba(8, 13, 30, 0.72) !important;
+    }
+    :root[data-theme-guard="on"] .status-message.is-success {
+        border-color: rgba(74, 222, 128, 0.4) !important;
+        background: rgba(20, 83, 45, 0.36) !important;
+        color: #bbf7d0 !important;
+    }
+    :root[data-theme-guard="on"] .status-message.is-warning {
+        border-color: rgba(251, 191, 36, 0.36) !important;
+        background: rgba(120, 53, 15, 0.24) !important;
+        color: #fde68a !important;
+    }
+    :root[data-theme-guard="on"] .status-message.is-error {
+        border-color: rgba(248, 113, 113, 0.4) !important;
+        background: rgba(127, 29, 29, 0.36) !important;
+        color: #fecaca !important;
+    }
+    :root[data-theme-guard="on"] .status-message.is-loading {
+        border-color: rgba(96, 165, 250, 0.4) !important;
+        background: rgba(30, 58, 95, 0.42) !important;
+        color: #bfdbfe !important;
+    }
+    :root[data-theme-guard="on"] .progress-panel,
+    :root[data-theme-guard="on"] .stats,
+    :root[data-theme-guard="on"] .panel,
+    :root[data-theme-guard="on"] .final-summary,
+    :root[data-theme-guard="on"] .activity-details {
+        border-color: var(--border) !important;
+        background: linear-gradient(180deg, var(--panel-2), var(--panel)) !important;
+        box-shadow: 0 14px 38px rgba(2, 6, 23, 0.24) !important;
+    }
+    :root[data-theme-guard="on"] .progress-count,
+    :root[data-theme-guard="on"] .current-repo,
+    :root[data-theme-guard="on"] .stat-label,
+    :root[data-theme-guard="on"] .panel-hint,
+    :root[data-theme-guard="on"] .repo-status,
+    :root[data-theme-guard="on"] .repo-meta,
+    :root[data-theme-guard="on"] .summary-grid span,
+    :root[data-theme-guard="on"] .compact-list li {
+        color: var(--muted) !important;
+    }
+    :root[data-theme-guard="on"] .spinner {
+        border: 2px solid #334155 !important;
+        border-top-color: var(--blue) !important;
+    }
+    :root[data-theme-guard="on"] .sync-panel .spinner { border-top-color: var(--green) !important; }
+    :root[data-theme-guard="on"] .stat,
+    :root[data-theme-guard="on"] .repo-row,
+    :root[data-theme-guard="on"] .summary-grid div {
+        border-color: var(--border) !important;
+        background: #0a0f1c !important;
+    }
+    :root[data-theme-guard="on"] .stat::before { background: var(--blue) !important; }
+    :root[data-theme-guard="on"] .stat-total::before { background: linear-gradient(90deg, var(--blue), var(--violet)) !important; }
+    :root[data-theme-guard="on"] .stat-ok::before { background: var(--green) !important; }
+    :root[data-theme-guard="on"] .stat-warn::before { background: var(--amber) !important; }
+    :root[data-theme-guard="on"] .stat-danger::before { background: var(--red) !important; }
+    :root[data-theme-guard="on"] .stat-total .stat-value { color: #e0e7ff !important; }
+    :root[data-theme-guard="on"] .stat-ok .stat-value { color: var(--green) !important; }
+    :root[data-theme-guard="on"] .stat-warn .stat-value { color: var(--amber) !important; }
+    :root[data-theme-guard="on"] .stat-danger .stat-value { color: var(--red) !important; }
+    :root[data-theme-guard="on"] .repo-status {
+        border-color: var(--border) !important;
+        background: rgba(15, 23, 42, 0.7) !important;
+    }
+    :root[data-theme-guard="on"] .repo-row.is-up-to-date .repo-status {
+        border-color: rgba(74, 222, 128, 0.38) !important;
+        background: rgba(20, 83, 45, 0.28) !important;
+        color: #bbf7d0 !important;
+    }
+    :root[data-theme-guard="on"] .repo-row.is-behind .repo-status {
+        border-color: rgba(251, 191, 36, 0.38) !important;
+        background: rgba(120, 53, 15, 0.26) !important;
+        color: #fde68a !important;
+    }
+    :root[data-theme-guard="on"] .repo-row.is-ahead .repo-status,
+    :root[data-theme-guard="on"] .repo-row.is-diverged .repo-status,
+    :root[data-theme-guard="on"] .repo-row.is-error .repo-status,
+    :root[data-theme-guard="on"] .repo-row.is-unknown .repo-status {
+        border-color: rgba(248, 113, 113, 0.38) !important;
+        background: rgba(127, 29, 29, 0.26) !important;
+        color: #fecaca !important;
+    }
+    :root[data-theme-guard="on"] .repo-row.is-checking .repo-status {
+        border-color: rgba(96, 165, 250, 0.4) !important;
+        background: rgba(30, 58, 95, 0.3) !important;
+        color: #bfdbfe !important;
+    }
+    :root[data-theme-guard="on"] .repo-row.is-unverified .repo-status {
+        border-color: rgba(251, 191, 36, 0.42) !important;
+        background: rgba(69, 26, 3, 0.38) !important;
+        color: #fde68a !important;
+    }
+    :root[data-theme-guard="on"] .repo-upstream::before,
+    :root[data-theme-guard="on"] .repo-last-sync::before { color: #7181a1 !important; }
+    :root[data-theme-guard="on"] .connection-status::before { background: var(--green) !important; }
+    :root[data-theme-guard="on"] .summary-attention {
+        border-color: rgba(251, 191, 36, 0.4) !important;
+        background: rgba(120, 53, 15, 0.24) !important;
+        color: #fde68a !important;
+    }
+    :root[data-theme-guard="on"] .ahead-note {
+        border-color: rgba(248, 113, 113, 0.4) !important;
+        background: rgba(127, 29, 29, 0.22) !important;
+        color: #fecaca !important;
+    }
+    :root[data-theme-guard="on"] .repo-tools input,
+    :root[data-theme-guard="on"] .repo-tools select {
+        border-color: var(--border) !important;
+        background: #0a0f1c !important;
+        color: var(--text) !important;
+    }
+    :root[data-theme-guard="on"] .check-retry {
+        border-color: rgba(96, 165, 250, 0.5) !important;
+        background: transparent !important;
+    }
 }
